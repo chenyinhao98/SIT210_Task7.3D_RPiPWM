@@ -1,28 +1,31 @@
-#Libraries
 import RPi.GPIO as GPIO
 import time
  
 #GPIO Mode (BOARD / BCM)
-GPIO.setmode(GPIO.BOARD)
+GPIO.setmode(GPIO.BCM)
  
 #set GPIO Pins
-GPIO_TRIGGER = 10
-GPIO_ECHO = 12
-LED = 8
+GPIO_TRIGGER = 18
+GPIO_ECHO = 24
+GPIO_LED = 17
  
 #set GPIO direction (IN / OUT)
 GPIO.setup(GPIO_TRIGGER, GPIO.OUT)
 GPIO.setup(GPIO_ECHO, GPIO.IN)
-GPIO.setup(8, GPIO.OUT)
- 
+GPIO.setup(GPIO_LED, GPIO.OUT)
+
+# set GPIO17 as PWM, 100Hz freq
+pwm = GPIO.PWM(GPIO_LED, 100)
+# start at 0%
+pwm.start(0)
+
 def distance():
     # set Trigger to HIGH
-    GPIO.output(GPIO_TRIGGER, True)
-    time.sleep(0.00001)
-    GPIO.output(GPIO_TRIGGER, False)
+    GPIO.output(GPIO_TRIGGER, GPIO.HIGH)
  
-    StartTime = time.time()
-    StopTime = time.time()
+    # set Trigger after 0.01ms to LOW
+    time.sleep(0.00001)
+    GPIO.output(GPIO_TRIGGER, GPIO.LOW)
  
     # save StartTime
     while GPIO.input(GPIO_ECHO) == 0:
@@ -31,23 +34,28 @@ def distance():
     # save time of arrival
     while GPIO.input(GPIO_ECHO) == 1:
         StopTime = time.time()
-
-    distance = ((StopTime - StartTime) * 34300) / 2
-
+ 
+    # time difference between start and arrival
+    TimeElapsed = StopTime - StartTime
+    # multiply with the sonic speed (34300 cm/s)
+    # and divide by 2, because there and back
+    distance = (TimeElapsed * 34300) / 2
+ 
     return distance
  
-if __name__ == '__main__':
-    try:
-        while True:
-            dist = distance()
-            if dist < 100:
-                GPIO.output(8, GPIO.HIGH)
-            elif dist >= 100:
-                GPIO.output(8, GPIO.LOW)
-            print ("Measured Distance = %.1f cm" % dist)
-            time.sleep(1)
- 
-        # Reset by pressing CTRL + C
-    except KeyboardInterrupt:
-        print("Measurement stopped by User")
-        GPIO.cleanup()
+
+try:
+    while True:
+        # multiply distance by 3 to demonstrate LED brightness in smaller range of motion
+        dist = distance() * 3
+        # ensure distance stays within bounds of 0-100
+        if dist < 0:
+            dist = 0
+        if dist > 100:
+            dist = 100
+        # set the brightness by subtracting the distance from the max brightness
+        pwm.ChangeDutyCycle(100 - dist)
+        time.sleep(0.1)
+            
+except KeyboardInterrupt:
+    GPIO.cleanup()
